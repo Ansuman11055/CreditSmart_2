@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { FinancialProfile, RiskAnalysis } from '../types';
 
 // Environment variable for API base URL
 // Defaults to local placeholder if not set
@@ -39,32 +40,19 @@ apiClient.interceptors.response.use(
 );
 
 /**
- * Placeholder service for Credit Risk API
+ * Production Credit Risk API service
+ * Connects to FastAPI backend at /api/v1/risk-analysis
  */
 export const creditRiskApi = {
   /**
-   * Calculate risk score based on input parameters.
-   * @param input Dictionary of financial data
-   * @returns Promise with risk score data
+   * Calculate risk score based on financial profile.
+   * @param input FinancialProfile from frontend form
+   * @returns Promise with RiskAnalysis response
    */
-  getRiskScore: async (input: Record<string, any>) => {
-    // SCALAR: This is a placeholder. In production, uncomment the API call.
-    // return apiClient.post('/risk/evaluate', input);
-    
-    // Placeholder mock response for UI development
-    console.log('[API Scaffold] getRiskScore called with:', input);
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          data: {
-            score: 750,
-            probability_of_default: 0.05,
-            timestamp: new Date().toISOString(),
-            status: 'success'
-          }
-        });
-      }, 800);
-    });
+  getRiskScore: async (input: FinancialProfile): Promise<{ data: RiskAnalysis }> => {
+    // Production API call to FastAPI backend
+    const response = await apiClient.post<RiskAnalysis>('/risk-analysis', input);
+    return { data: response.data };
   },
 
   /**

@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { View } from '../types';
 
 interface NavbarProps {
@@ -10,6 +12,9 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ currentView, onViewChange, className = '' }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   useEffect(() => {
     const handleScroll = () => {
@@ -20,10 +25,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onViewChange, class
   }, []);
 
   const navLinks = [
-    { name: 'Product', href: '#' },
-    { name: 'Risk Engine', href: '#' },
-    { name: 'Explainability', href: '#' },
-    { name: 'Developers', href: '#' },
+    { name: 'Product', href: '/product' },
+    { name: 'Risk Engine', href: '/risk-engine' },
+    { name: 'Explainability', href: '/explainability' },
+    { name: 'Developers', href: '/developers' },
   ];
 
   return (
@@ -37,9 +42,9 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onViewChange, class
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
           {/* Brand */}
-          <div 
-            className="flex items-center gap-2 cursor-pointer group" 
-            onClick={() => onViewChange(View.LANDING)}
+          <Link 
+            to="/"
+            className="flex items-center gap-2 cursor-pointer group"
           >
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20 group-hover:shadow-brand-500/40 transition-shadow">
               <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -49,36 +54,42 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onViewChange, class
             <span className="font-display font-bold text-xl tracking-tight text-white group-hover:text-white/90 transition-colors">
               Credit<span className="text-brand-400">Smart</span>
             </span>
-          </div>
+          </Link>
 
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-8">
             {navLinks.map((link) => (
-              <a 
+              <Link 
                 key={link.name} 
-                href={link.href}
+                to={link.href}
                 className="text-sm font-medium text-slate-400 hover:text-white transition-colors"
               >
                 {link.name}
-              </a>
+              </Link>
             ))}
           </div>
 
           {/* Actions */}
           <div className="hidden md:flex items-center gap-6">
-            <button className="text-sm font-medium text-slate-400 hover:text-white transition-colors">
+            <Link 
+              to="/login"
+              className="text-sm font-medium text-slate-400 hover:text-white transition-colors"
+            >
               Sign In
-            </button>
-            <button 
-              onClick={() => onViewChange(View.DASHBOARD)}
-              className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
-                currentView === View.DASHBOARD 
+            </Link>
+            <motion.button 
+              onClick={() => navigate('/dashboard')}
+              className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200 ${
+                location.pathname === '/dashboard'
                   ? 'bg-white/10 text-white cursor-default border border-white/10' 
-                  : 'bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-500/20 hover:translate-y-[-1px]'
+                  : 'bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-500/20'
               }`}
+              whileHover={location.pathname !== '/dashboard' && !prefersReducedMotion ? { scale: 1.02, y: -1 } : {}}
+              whileTap={location.pathname !== '/dashboard' && !prefersReducedMotion ? { scale: 0.98 } : {}}
+              transition={{ duration: 0.15 }}
             >
               Launch Console
-            </button>
+            </motion.button>
           </div>
 
           {/* Mobile Menu Button */}
@@ -104,27 +115,35 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onViewChange, class
         <div className="md:hidden absolute top-full left-0 w-full bg-dark-900/95 backdrop-blur-xl border-b border-white/5 animate-fade-in">
           <div className="px-4 py-6 space-y-4">
             {navLinks.map((link) => (
-              <a 
+              <Link 
                 key={link.name} 
-                href={link.href}
+                to={link.href}
+                onClick={() => setIsMobileMenuOpen(false)}
                 className="block text-base font-medium text-slate-300 hover:text-white transition-colors"
               >
                 {link.name}
-              </a>
+              </Link>
             ))}
             <div className="pt-4 border-t border-white/10 flex flex-col gap-4">
-              <button className="text-base font-medium text-slate-300 hover:text-white transition-colors text-left">
+              <Link
+                to="/login"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="text-base font-medium text-slate-300 hover:text-white transition-colors text-left"
+              >
                 Sign In
-              </button>
-              <button 
+              </Link>
+              <motion.button 
                 onClick={() => {
-                  onViewChange(View.DASHBOARD);
+                  navigate('/dashboard');
                   setIsMobileMenuOpen(false);
                 }}
                 className="w-full py-3 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-medium text-center shadow-lg shadow-brand-500/20"
+                whileHover={!prefersReducedMotion ? { scale: 1.02 } : {}}
+                whileTap={!prefersReducedMotion ? { scale: 0.98 } : {}}
+                transition={{ duration: 0.15 }}
               >
                 Launch Console
-              </button>
+              </motion.button>
             </div>
           </div>
         </div>

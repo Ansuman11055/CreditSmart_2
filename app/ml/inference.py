@@ -109,7 +109,8 @@ class CreditRiskInferenceEngine:
         return CreditRiskResponse(
             risk_score=round(risk_score / 100, 3),  # Convert to 0-1 scale for API
             risk_level=risk_level,
-            confidence=0.95,  # Deterministic model has high confidence
+            prediction_probability=round(risk_score / 100, 3),  # Same as risk_score for compatibility
+            confidence_level="HIGH",  # Deterministic model has high confidence
             recommended_action=recommended_action,
             explanation=explanation,
             key_factors=key_factors,

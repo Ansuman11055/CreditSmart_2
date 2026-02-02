@@ -1,10 +1,13 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 
 interface ValuePropositionProps {
   onDashboard: () => void;
 }
 
 export const ValueProposition: React.FC<ValuePropositionProps> = ({ onDashboard }) => {
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  
   return (
     <section className="relative w-full min-h-[90vh] bg-dark-900 flex items-center justify-center py-24 overflow-hidden">
         {/* Background Gradients - Subtle Parallax Effect */}
@@ -12,14 +15,26 @@ export const ValueProposition: React.FC<ValuePropositionProps> = ({ onDashboard 
         <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-indigo-900/10 blur-[120px] rounded-full pointer-events-none" />
         
         <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10 w-full">
-            <div className="glass-panel rounded-3xl p-8 md:p-16 border border-white/5 bg-gradient-to-br from-white/5 via-white/[0.02] to-transparent relative overflow-hidden group">
+            <motion.div 
+                className="glass-panel rounded-3xl p-8 md:p-16 border border-white/5 bg-gradient-to-br from-white/5 via-white/[0.02] to-transparent relative overflow-hidden group"
+                initial={prefersReducedMotion ? {} : { opacity: 0, y: 50 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-100px' }}
+                transition={{ duration: 0.6, ease: 'easeOut' }}
+            >
                 
                 {/* Decorative glow inside card */}
                 <div className="absolute -top-24 -right-24 w-64 h-64 bg-brand-500/20 rounded-full blur-[80px] pointer-events-none opacity-50 group-hover:opacity-100 transition-opacity duration-700" />
                 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
                     {/* Text Content */}
-                    <div className="space-y-8 relative z-20">
+                    <motion.div 
+                        className="space-y-8 relative z-20"
+                        initial={prefersReducedMotion ? {} : { opacity: 0, x: -30 }}
+                        whileInView={{ opacity: 1, x: 0 }}
+                        viewport={{ once: true, margin: '-100px' }}
+                        transition={{ duration: 0.6, delay: 0.2, ease: 'easeOut' }}
+                    >
                         <div>
                             <h2 className="text-3xl md:text-5xl font-display font-medium text-white leading-tight mb-4">
                                 Shaping the future of credit, <span className="text-brand-400">responsibly.</span>
@@ -42,24 +57,16 @@ export const ValueProposition: React.FC<ValuePropositionProps> = ({ onDashboard 
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                             </svg>
                         </button>
-                    </div>
+                    </motion.div>
 
                     {/* Visual Abstraction */}
-                    <div className="relative h-[450px] w-full flex items-center justify-center perspective-[1000px]">
-                        
-                        {/* Connecting Lines (SVG) */}
-                         <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20" style={{ zIndex: 0 }}>
-                            <path d="M150 225 Q 250 150 350 100" stroke="url(#lineGradient)" strokeWidth="1" fill="none" strokeDasharray="4 4" className="animate-pulse" />
-                            <path d="M150 225 Q 200 350 150 380" stroke="url(#lineGradient)" strokeWidth="1" fill="none" strokeDasharray="4 4" className="animate-pulse" style={{ animationDelay: '1s' }} />
-                            <defs>
-                                <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                    <stop offset="0%" stopColor="#38bdf8" stopOpacity="0" />
-                                    <stop offset="50%" stopColor="#38bdf8" stopOpacity="1" />
-                                    <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
-                                </linearGradient>
-                            </defs>
-                        </svg>
-
+                    <motion.div 
+                        className="relative h-[450px] w-full flex items-center justify-center perspective-[1000px]"
+                        initial={prefersReducedMotion ? {} : { opacity: 0, x: 30 }}
+                        whileInView={{ opacity: 1, x: 0 }}
+                        viewport={{ once: true, margin: '-100px' }}
+                        transition={{ duration: 0.6, delay: 0.3, ease: 'easeOut' }}
+                    >
                         {/* Central Node */}
                         <div className="relative z-10 w-24 h-24 rounded-2xl bg-gradient-to-br from-brand-600 to-indigo-600 shadow-[0_0_50px_rgba(56,189,248,0.3)] flex items-center justify-center transform transition-transform duration-700 hover:scale-110 border border-white/20">
                             <div className="absolute inset-0 bg-noise opacity-20 mix-blend-overlay"></div>
@@ -101,9 +108,9 @@ export const ValueProposition: React.FC<ValuePropositionProps> = ({ onDashboard 
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </motion.div>
                 </div>
-            </div>
+            </motion.div>
         </div>
     </section>
   );

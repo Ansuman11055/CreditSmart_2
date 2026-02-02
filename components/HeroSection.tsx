@@ -1,10 +1,12 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 
 interface HeroSectionProps {
   onExplore: () => void;
 }
 
 export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore }) => {
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   return (
     <div className="relative w-full h-screen overflow-hidden bg-black text-white selection:bg-brand-500/30">
       {/* Background Elements */}
@@ -28,20 +30,38 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore }) => {
       {/* Main Content */}
       <div className="relative z-10 h-full flex flex-col items-center justify-center px-4 sm:px-6">
         <div className="max-w-6xl mx-auto text-center space-y-12">
-          <h1 className="text-5xl md:text-7xl lg:text-8xl font-display font-medium leading-[0.95] tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white via-white/90 to-white/40">
+          <motion.h1 
+            className="text-5xl md:text-7xl lg:text-8xl font-display font-medium leading-[0.95] tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white via-white/90 to-white/40"
+            initial={prefersReducedMotion ? {} : { opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+          >
             Will your credit decision <br />
             <span className="text-white/30">create opportunity</span> <br />
             <span className="italic font-light text-brand-200/80">— or risk?</span>
-          </h1>
+          </motion.h1>
 
-          <p className="text-lg md:text-xl text-slate-400 font-light tracking-wide max-w-xl mx-auto">
+          <motion.p 
+            className="text-lg md:text-xl text-slate-400 font-light tracking-wide max-w-xl mx-auto"
+            initial={prefersReducedMotion ? {} : { opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.2, ease: 'easeOut' }}
+          >
             AI-powered intelligence for smarter lending decisions.
-          </p>
+          </motion.p>
 
-          <div className="pt-4">
-            <button 
+          <motion.div 
+            className="pt-4"
+            initial={prefersReducedMotion ? {} : { opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.4, ease: 'easeOut' }}
+          >
+            <motion.button 
               onClick={onExplore}
-              className="group relative px-10 py-5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md transition-all duration-500 ease-out hover:scale-105 hover:border-brand-500/30 overflow-hidden"
+              className="group relative px-10 py-5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md transition-all duration-300 ease-out hover:border-brand-500/30 overflow-hidden"
+              whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
+              whileTap={prefersReducedMotion ? {} : { scale: 0.98 }}
+              transition={{ duration: 0.15 }}
             >
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
               <span className="relative flex items-center gap-4 text-sm font-medium tracking-widest uppercase text-white/90 group-hover:text-white">
@@ -50,8 +70,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore }) => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>
               </span>
-            </button>
-          </div>
+            </motion.button>
+          </motion.div>
         </div>
       </div>
 

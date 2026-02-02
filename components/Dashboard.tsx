@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
-import { FinancialProfile, RiskAnalysis } from '../types';
-import { analyzeRisk } from '../services/geminiService';
-import { RiskResult } from './RiskResult';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { motion } from 'framer-motion';
+import { FinancialProfile } from '../types';
+import { usePrediction } from '../src/hooks/usePrediction';
+import { PredictionHeader } from './PredictionHeader';
+import { ModelConfidence } from './ModelConfidence';
+import { KeyRiskDrivers } from './KeyRiskDrivers';
+import { RecommendationPanel } from './RecommendationPanel';
 
 const INITIAL_PROFILE: FinancialProfile = {
   annualIncome: 85000,
@@ -14,9 +17,8 @@ const INITIAL_PROFILE: FinancialProfile = {
 
 export const Dashboard: React.FC = () => {
   const [profile, setProfile] = useState<FinancialProfile>(INITIAL_PROFILE);
-  const [analysis, setAnalysis] = useState<RiskAnalysis | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [{ prediction, loading, error }, { runPrediction }] = usePrediction();
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -27,35 +29,35 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleAnalyze = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await analyzeRisk(profile);
-      setAnalysis(result);
-    } catch (err) {
-      setError("Failed to analyze risk. Please check your API key.");
-    } finally {
-      setLoading(false);
-    }
+    await runPrediction({
+      annualIncome: profile.annualIncome,
+      monthlyDebt: profile.monthlyDebt,
+      creditScore: profile.creditScore,
+      loanAmount: profile.loanAmount,
+      employmentYears: profile.employmentYears
+    });
   };
-
-  // Mock data for chart visualization
-  const chartData = [
-    { name: 'Income', value: profile.annualIncome / 1000, color: '#38bdf8' },
-    { name: 'Debt (Ann)', value: (profile.monthlyDebt * 12) / 1000, color: '#f43f5e' },
-    { name: 'Loan', value: profile.loanAmount / 1000, color: '#fbbf24' },
-  ];
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div className="mb-10">
+      <motion.div 
+        className="mb-10"
+        initial={prefersReducedMotion ? {} : { opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+      >
         <h2 className="text-3xl font-display font-bold text-white mb-2">Risk Analysis Console</h2>
-        <p className="text-slate-400">Enter applicant financial data for real-time Gemini-powered assessment.</p>
-      </div>
+        <p className="text-slate-400">Enter applicant financial data for real-time ML-powered assessment.</p>
+      </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Input Form */}
-        <div className="lg:col-span-4 space-y-6">
+        <motion.div 
+          className="lg:col-span-4 space-y-6"
+          initial={prefersReducedMotion ? {} : { opacity: 0, x: -30 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
+        >
           <div className="glass-panel p-6 rounded-xl">
             <h3 className="text-lg font-medium text-white mb-6 flex items-center gap-2">
               <svg className="w-5 h-5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -120,67 +122,79 @@ export const Dashboard: React.FC = () => {
                 />
               </div>
 
-              <button
+              <motion.button
                 onClick={handleAnalyze}
-                disabled={loading}
-                className="w-full mt-6 bg-brand-600 hover:bg-brand-500 disabled:bg-brand-900 disabled:cursor-not-allowed text-white font-medium py-3 rounded-lg shadow-lg shadow-brand-500/20 transition-all duration-200 flex items-center justify-center gap-2"
+                className="w-full mt-6 bg-brand-600 hover:bg-brand-500 text-white font-medium py-3 rounded-lg shadow-lg shadow-brand-500/20 transition-all duration-200 flex items-center justify-center gap-2"
+                whileHover={!prefersReducedMotion ? { scale: 1.02 } : {}}
+                whileTap={!prefersReducedMotion ? { scale: 0.98 } : {}}
+                transition={{ duration: 0.15 }}
               >
-                {loading ? (
-                  <>
-                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Processing
-                  </>
-                ) : (
-                  'Run Analysis'
-                )}
-              </button>
-              {error && <p className="text-red-400 text-sm text-center mt-2">{error}</p>}
+                Run Analysis
+              </motion.button>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Results Area */}
-        <div className="lg:col-span-8 space-y-6">
-          {/* Quick Stats Chart */}
-          <div className="glass-panel p-6 rounded-xl">
-            <h4 className="text-sm font-medium text-slate-400 mb-4 uppercase tracking-wide">Financial Overview (k)</h4>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                  <XAxis 
-                    dataKey="name" 
-                    stroke="#64748b" 
-                    fontSize={12} 
-                    tickLine={false} 
-                    axisLine={false}
-                  />
-                  <YAxis 
-                    stroke="#64748b" 
-                    fontSize={12} 
-                    tickLine={false} 
-                    axisLine={false}
-                    tickFormatter={(value) => `$${value}k`}
-                  />
-                  <Tooltip 
-                    cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc' }}
-                  />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+        {/* ML Results - Right Column */}
+        <motion.div 
+          className="lg:col-span-8 space-y-6"
+          initial={prefersReducedMotion ? {} : { opacity: 0, x: 30 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, delay: 0.2, ease: 'easeOut' }}
+        >
+          {loading ? (
+            /* Loading State - Minimal Skeleton */
+            <div className="glass-panel p-12 rounded-xl text-center">
+              <div className="inline-block w-12 h-12 border-4 border-slate-700 border-t-brand-500 rounded-full animate-spin mb-4" />
+              <h3 className="text-lg font-medium text-slate-400">Analyzing risk profile...</h3>
             </div>
-          </div>
+          ) : error ? (
+            /* Error State - Single Line Fallback */
+            <div className="glass-panel p-12 rounded-xl text-center">
+              <svg className="w-16 h-16 text-slate-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <h3 className="text-lg font-medium text-slate-400 mb-2">{error}</h3>
+              <p className="text-sm text-slate-500">
+                Please try again or contact support if the issue persists
+              </p>
+            </div>
+          ) : prediction ? (
+            <>
+              {/* 1. Prediction Summary (PRIMARY FOCUS) */}
+              <PredictionHeader 
+                riskScore={prediction.risk_score}
+                riskBand={prediction.risk_band}
+              />
 
-          {/* AI Result Component */}
-          <RiskResult analysis={analysis} loading={loading} />
-        </div>
+              {/* 2. Model Confidence */}
+              <ModelConfidence 
+                confidence={prediction.confidence}
+              />
+
+              {/* 3. Key Risk Drivers (Explainability Preview) */}
+              <KeyRiskDrivers 
+                features={prediction.top_features}
+              />
+
+              {/* 4. Recommendation (Decision Layer) */}
+              <RecommendationPanel 
+                recommendation={prediction.recommendation}
+                riskBand={prediction.risk_band}
+              />
+            </>
+          ) : (
+            <div className="glass-panel p-12 rounded-xl text-center">
+              <svg className="w-16 h-16 text-slate-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              <h3 className="text-lg font-medium text-slate-400 mb-2">No Analysis Yet</h3>
+              <p className="text-sm text-slate-500">
+                Enter applicant data and click "Run Analysis" to generate a risk assessment
+              </p>
+            </div>
+          )}
+        </motion.div>
       </div>
     </div>
   );

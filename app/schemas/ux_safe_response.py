@@ -1,6 +1,7 @@
 """UX-Safe response wrapper for frontend-safe error handling.
 
 Phase 3B-2: API Contract Hardening & UX-Safe Failure Handling
+Phase 3E: Production Readiness (versioned responses with metadata)
 
 This module provides a GUARANTEED response contract that ALWAYS returns
 the same structure, even during failures. This prevents frontend UI breaks.
@@ -13,6 +14,8 @@ Every /predict response will have these fields (ALL required):
   - prediction: number | null
   - confidence: number | null (0.0-1.0)
   - error: string | null
+  - prediction_timestamp: ISO 8601 string (Phase 3E)
+  - inference_time_ms: number | null (Phase 3E)
 
 NEVER null/missing fields. NEVER stack traces. ALWAYS valid JSON.
 """
@@ -113,6 +116,20 @@ class UXSafePredictionResponse(BaseModel):
     )
     
     # ═══════════════════════════════════════════════════════════════════════
+    # PRODUCTION METADATA (PHASE 3E)
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    prediction_timestamp: str = Field(
+        ...,
+        description="ISO 8601 timestamp when prediction was generated (UTC)."
+    )
+    
+    inference_time_ms: Optional[float] = Field(
+        ...,  # Field is required, but value can be None
+        description="ML inference time in milliseconds. null if error occurred."
+    )
+    
+    # ═══════════════════════════════════════════════════════════════════════
     # OPTIONAL DETAILED DATA (ONLY ON SUCCESS)
     # ═══════════════════════════════════════════════════════════════════════
     
@@ -129,13 +146,17 @@ class UXSafePredictionResponse(BaseModel):
     def success(
         cls,
         request_id: str,
-        prediction_response: CreditRiskResponse
+        prediction_response: CreditRiskResponse,
+        prediction_timestamp: str,
+        inference_time_ms: float
     ) -> "UXSafePredictionResponse":
         """Create success response with full prediction data.
         
         Args:
             request_id: Unique request identifier
             prediction_response: Full prediction details from ML model
+            prediction_timestamp: ISO 8601 timestamp (UTC)
+            inference_time_ms: ML inference time in milliseconds
             
         Returns:
             UXSafePredictionResponse with status='success'
@@ -147,6 +168,8 @@ class UXSafePredictionResponse(BaseModel):
             prediction=prediction_response.risk_score,
             confidence=_calculate_confidence_score(prediction_response.risk_score),
             error=None,
+            prediction_timestamp=prediction_timestamp,
+            inference_time_ms=inference_time_ms,
             data=prediction_response
         )
     
@@ -155,7 +178,8 @@ class UXSafePredictionResponse(BaseModel):
         cls,
         request_id: str,
         error_message: str,
-        model_version: str = "unknown"
+        model_version: str = "unknown",
+        prediction_timestamp: Optional[str] = None
     ) -> "UXSafePredictionResponse":
         """Create error response with null predictions.
         
@@ -163,10 +187,16 @@ class UXSafePredictionResponse(BaseModel):
             request_id: Unique request identifier
             error_message: Human-readable error description
             model_version: Model version if available, else "unknown"
+            prediction_timestamp: ISO 8601 timestamp (UTC), auto-generated if None
             
         Returns:
             UXSafePredictionResponse with status='error'
         """
+        from datetime import datetime, timezone
+        
+        if prediction_timestamp is None:
+            prediction_timestamp = datetime.now(timezone.utc).isoformat()
+        
         return cls(
             status="error",
             request_id=request_id,
@@ -174,6 +204,8 @@ class UXSafePredictionResponse(BaseModel):
             prediction=None,
             confidence=None,
             error=error_message,
+            prediction_timestamp=prediction_timestamp,
+            inference_time_ms=None,
             data=None
         )
 

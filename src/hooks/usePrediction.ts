@@ -68,10 +68,24 @@ export function usePrediction(): [PredictionState, PredictionActions] {
         analyzed: true
       });
     } catch (error) {
+      // Log the actual error to console for debugging
+      console.error('Prediction error:', error);
+      
+      // Extract meaningful error message
+      let errorMessage = 'Prediction temporarily unavailable';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        console.error('Error details:', {
+          message: error.message,
+          stack: error.stack
+        });
+      }
+      
       setState({
         prediction: null,
         loading: false,
-        error: 'Prediction temporarily unavailable',
+        error: errorMessage,
         analyzed: false
       });
     }

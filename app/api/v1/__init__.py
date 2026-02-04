@@ -51,14 +51,22 @@ from app.api.v1.advisor import router as advisor_router
 from app.api.v1.model_info import router as model_info_router
 from app.api.v1.risk_analysis import router as risk_analysis_router
 from app.api.v1.system_info import router as system_info_router
+from app.api.v1.cache_stats import router as cache_stats_router
+from app.api.v1.explain import router as explain_router
+from app.api.v1.decision import router as decision_router
+from app.api.v1.advice import router as advice_router
 
 # Centralized v1 router - all v1 endpoints included here
 v1_router = APIRouter()
 v1_router.include_router(health_router, tags=["health"])
 v1_router.include_router(predict_router, tags=["prediction"])
+v1_router.include_router(explain_router, tags=["explainability"])
+v1_router.include_router(decision_router, tags=["decision"])
+v1_router.include_router(advice_router, tags=["advisory"])
 v1_router.include_router(advisor_router, tags=["advisor"])
 v1_router.include_router(model_info_router, tags=["model"])
 v1_router.include_router(risk_analysis_router, tags=["frontend-adapter"])
 v1_router.include_router(system_info_router, tags=["system"])
+v1_router.include_router(cache_stats_router, tags=["monitoring"])
 
 __all__ = ["v1_router"]

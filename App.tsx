@@ -1,6 +1,9 @@
 import React from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
+import { CurrencyProvider } from './src/context/CurrencyContext';
+import { AuthProvider } from './src/context/AuthContext'; // Phase 4C Local Auth
+import { ProtectedRoute } from './src/components/ProtectedRoute'; // Phase 4C Local Auth
 import { LandingPage } from './pages/LandingPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ProductPage } from './pages/ProductPage';
@@ -30,17 +33,36 @@ export default function App() {
   const location = useLocation();
   
   return (
-    <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
-        <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
-        <Route path="/dashboard" element={<PageTransition><DashboardPage /></PageTransition>} />
-        <Route path="/product" element={<PageTransition><ProductPage /></PageTransition>} />
-        <Route path="/risk-engine" element={<PageTransition><RiskEnginePage /></PageTransition>} />
-        <Route path="/explainability" element={<PageTransition><ExplainabilityPage /></PageTransition>} />
-        <Route path="/developers" element={<PageTransition><DevelopersPage /></PageTransition>} />
-        <Route path="/login" element={<PageTransition><LoginPage /></PageTransition>} />
-        <Route path="/geometry-demo" element={<PageTransition><GeometryDemoPage /></PageTransition>} />
-      </Routes>
-    </AnimatePresence>
+    // Phase 4C Local Auth - Wrap with AuthProvider
+    <AuthProvider>
+      <CurrencyProvider>
+        <AnimatePresence mode="wait">
+          <Routes location={location} key={location.pathname}>
+            <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
+            <Route path="/product" element={<PageTransition><ProductPage /></PageTransition>} />
+            <Route path="/developers" element={<PageTransition><DevelopersPage /></PageTransition>} />
+            <Route path="/login" element={<PageTransition><LoginPage /></PageTransition>} />
+            
+            {/* Phase 4C Local Auth - Protected Routes */}
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <PageTransition><DashboardPage /></PageTransition>
+              </ProtectedRoute>
+            } />
+            <Route path="/risk-engine" element={
+              <ProtectedRoute>
+                <PageTransition><RiskEnginePage /></PageTransition>
+              </ProtectedRoute>
+            } />
+            <Route path="/explainability" element={
+              <ProtectedRoute>
+                <PageTransition><ExplainabilityPage /></PageTransition>
+              </ProtectedRoute>
+            } />
+            <Route path="/geometry-demo" element={<PageTransition><GeometryDemoPage /></PageTransition>} />
+          </Routes>
+        </AnimatePresence>
+      </CurrencyProvider>
+    </AuthProvider>
   );
 }

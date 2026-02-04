@@ -1,40 +1,98 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { FinancialProfile } from '../types';
 import { usePrediction } from '../src/hooks/usePrediction';
+import { useCurrency } from '../src/context/CurrencyContext';
+import { formatCurrency, convertToUSD, convertFromUSD } from '../src/utils/currency';
+import { sanitizeNumberInput } from '../src/utils/formValidation';
 import { PredictionHeader } from './PredictionHeader';
 import { ModelConfidence } from './ModelConfidence';
 import { KeyRiskDrivers } from './KeyRiskDrivers';
 import { RecommendationPanel } from './RecommendationPanel';
 
-const INITIAL_PROFILE: FinancialProfile = {
-  annualIncome: 85000,
-  monthlyDebt: 1200,
-  creditScore: 720,
-  loanAmount: 25000,
-  employmentYears: 5
+// Phase 4C UX Stability Fix - String-based form state to prevent input reset
+interface FormState {
+  annualIncome: string;
+  monthlyDebt: string;
+  creditScore: string;
+  loanAmount: string;
+  employmentYears: string;
+}
+
+const INITIAL_FORM: FormState = {
+  annualIncome: '85000',
+  monthlyDebt: '1200',
+  creditScore: '720',
+  loanAmount: '25000',
+  employmentYears: '5'
 };
 
 export const Dashboard: React.FC = () => {
-  const [profile, setProfile] = useState<FinancialProfile>(INITIAL_PROFILE);
+  const [formData, setFormData] = useState<FormState>(INITIAL_FORM);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [{ prediction, loading, error }, { runPrediction }] = usePrediction();
+  const { currency } = useCurrency();
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // Phase 4C UX Stability Fix - NO parsing during typing, preserve raw input
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setProfile(prev => ({
+    
+    // Store raw string value, allowing intermediate states like "12." or ""
+    setFormData(prev => ({
       ...prev,
-      [name]: parseFloat(value) || 0
+      [name]: value
     }));
+    
+    // Clear validation error when user starts typing
+    if (validationError) {
+      setValidationError(null);
+    }
   };
 
+  // Phase 4C UX Stability Fix - Parse and validate ONLY on submission
   const handleAnalyze = async () => {
+    // Parse all string inputs to numbers
+    const annualIncomeNum = sanitizeNumberInput(formData.annualIncome);
+    const monthlyDebtNum = sanitizeNumberInput(formData.monthlyDebt);
+    const creditScoreNum = sanitizeNumberInput(formData.creditScore);
+    const loanAmountNum = sanitizeNumberInput(formData.loanAmount);
+    const employmentYearsNum = sanitizeNumberInput(formData.employmentYears);
+
+    // Validate all required fields
+    if (annualIncomeNum === null || annualIncomeNum <= 0) {
+      setValidationError('Please enter a valid annual income');
+      return;
+    }
+    if (monthlyDebtNum === null || monthlyDebtNum < 0) {
+      setValidationError('Please enter a valid monthly debt amount');
+      return;
+    }
+    if (creditScoreNum === null || creditScoreNum < 300 || creditScoreNum > 850) {
+      setValidationError('Credit score must be between 300 and 850');
+      return;
+    }
+    if (loanAmountNum === null || loanAmountNum <= 0) {
+      setValidationError('Please enter a valid loan amount');
+      return;
+    }
+    if (employmentYearsNum === null || employmentYearsNum < 0) {
+      setValidationError('Please enter valid employment years');
+      return;
+    }
+
+    // Convert display currency to USD for backend
+    const annualIncomeUSD = convertToUSD(annualIncomeNum, currency);
+    const monthlyDebtUSD = convertToUSD(monthlyDebtNum, currency);
+    const loanAmountUSD = convertToUSD(loanAmountNum, currency);
+
+    // Backend always receives USD values
     await runPrediction({
-      annualIncome: profile.annualIncome,
-      monthlyDebt: profile.monthlyDebt,
-      creditScore: profile.creditScore,
-      loanAmount: profile.loanAmount,
-      employmentYears: profile.employmentYears
+      annualIncome: annualIncomeUSD,
+      monthlyDebt: monthlyDebtUSD,
+      creditScore: creditScoreNum,
+      loanAmount: loanAmountUSD,
+      employmentYears: employmentYearsNum
     });
   };
 
@@ -66,25 +124,40 @@ export const Dashboard: React.FC = () => {
               Applicant Data
             </h3>
             
+            {/* Phase 4C UX Stability Fix - Validation error display */}
+            {validationError && (
+              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                <p className="text-sm text-red-400">{validationError}</p>
+              </div>
+            )}
+            
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wide">Annual Income ($)</label>
+                <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wide">
+                  Annual Income ({currency})
+                </label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   name="annualIncome"
-                  value={profile.annualIncome}
+                  value={formData.annualIncome}
                   onChange={handleInputChange}
+                  placeholder="e.g., 85000"
                   className="w-full bg-dark-800 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wide">Monthly Debt ($)</label>
+                <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wide">
+                  Monthly Debt ({currency})
+                </label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   name="monthlyDebt"
-                  value={profile.monthlyDebt}
+                  value={formData.monthlyDebt}
                   onChange={handleInputChange}
+                  placeholder="e.g., 1200"
                   className="w-full bg-dark-800 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
                 />
               </div>
@@ -92,21 +165,27 @@ export const Dashboard: React.FC = () => {
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wide">Credit Score</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   name="creditScore"
-                  value={profile.creditScore}
+                  value={formData.creditScore}
                   onChange={handleInputChange}
+                  placeholder="e.g., 720"
                   className="w-full bg-dark-800 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wide">Loan Amount ($)</label>
+                <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wide">
+                  Loan Amount ({currency})
+                </label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   name="loanAmount"
-                  value={profile.loanAmount}
+                  value={formData.loanAmount}
                   onChange={handleInputChange}
+                  placeholder="e.g., 25000"
                   className="w-full bg-dark-800 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
                 />
               </div>
@@ -114,22 +193,25 @@ export const Dashboard: React.FC = () => {
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wide">Employment (Years)</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   name="employmentYears"
-                  value={profile.employmentYears}
+                  value={formData.employmentYears}
                   onChange={handleInputChange}
+                  placeholder="e.g., 5"
                   className="w-full bg-dark-800 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
                 />
               </div>
 
               <motion.button
                 onClick={handleAnalyze}
-                className="w-full mt-6 bg-brand-600 hover:bg-brand-500 text-white font-medium py-3 rounded-lg shadow-lg shadow-brand-500/20 transition-all duration-200 flex items-center justify-center gap-2"
-                whileHover={!prefersReducedMotion ? { scale: 1.02 } : {}}
-                whileTap={!prefersReducedMotion ? { scale: 0.98 } : {}}
+                disabled={loading}
+                className="w-full mt-6 bg-brand-600 hover:bg-brand-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-medium py-3 rounded-lg shadow-lg shadow-brand-500/20 transition-all duration-200 flex items-center justify-center gap-2"
+                whileHover={!prefersReducedMotion && !loading ? { scale: 1.02 } : {}}
+                whileTap={!prefersReducedMotion && !loading ? { scale: 0.98 } : {}}
                 transition={{ duration: 0.15 }}
               >
-                Run Analysis
+                {loading ? 'Analyzing...' : 'Run Analysis'}
               </motion.button>
             </div>
           </div>

@@ -56,6 +56,9 @@ from app.schemas.request import CreditRiskRequest
 from app.schemas.response import CreditRiskResponse
 from app.schemas.ux_safe_response import UXSafePredictionResponse, REQUEST_SCHEMA_VERSION, RESPONSE_SCHEMA_VERSION
 from app.ml.model import get_model
+from app.core.prediction_cache import get_prediction_cache
+# Phase 4D Explainability - Import explainability service
+from app.services.explainability_service import get_explainability_service
 
 # Timeout configuration (seconds)
 INFERENCE_TIMEOUT = 30.0
@@ -330,7 +333,34 @@ async def predict_credit_risk_ux_safe(request: CreditRiskRequest) -> UXSafePredi
             return UXSafePredictionResponse.create_error(
                 request_id=request_id,
                 error_message="Model not loaded. Service is starting up or experiencing issues.",
-                model_version="unknown"
+                model_version="unknown",
+                prediction_timestamp=timestamp
+            )
+        
+        model_version = model.get_model_version()
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # PHASE 3E: PREDICTION CACHING
+        # ═══════════════════════════════════════════════════════════════════════
+        # Check cache before running inference (skip for high-risk inputs)
+        cache = get_prediction_cache()
+        request_dict = request.model_dump()
+        
+        cached_response = cache.get(request_dict, model_version)
+        if cached_response is not None:
+            logger.info(
+                "prediction_cache_hit",
+                request_id=request_id,
+                model_version=model_version,
+                cache_stats=cache.get_stats()
+            )
+            
+            # Return cached response with new request_id and timestamp
+            return UXSafePredictionResponse.success(
+                request_id=request_id,
+                prediction_response=cached_response,
+                prediction_timestamp=timestamp,
+                inference_time_ms=0.0  # Cached, no inference time
             )
         
         logger.debug(
@@ -365,10 +395,115 @@ async def predict_credit_risk_ux_safe(request: CreditRiskRequest) -> UXSafePredi
             return UXSafePredictionResponse.create_error(
                 request_id=request_id,
                 error_message=f"Inference timeout after {INFERENCE_TIMEOUT}s. Please try again with different inputs.",
-                model_version=model.get_model_version() if model.is_loaded else "unknown"
+                model_version=model.get_model_version() if model.is_loaded else "unknown",
+                prediction_timestamp=timestamp
             )
         
         inference_time = time.time() - inference_start
+        inference_time_ms = round(inference_time * 1000, 2)
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # PHASE 3E: CACHE SUCCESSFUL PREDICTIONS
+        # ═══════════════════════════════════════════════════════════════════════
+        # Cache response for future requests (bypasses high-risk automatically)
+        cache.put(request_dict, model_version, response)
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # PHASE 4D: COMPUTE AND CACHE EXPLANATION
+        # ═══════════════════════════════════════════════════════════════════════
+        try:
+            # Get SHAP values from model (computed during prediction)
+            shap_values, feature_names = model.get_last_shap_values()
+            
+            if shap_values is not None and feature_names is not None:
+                # Get explainability service
+                explainer = get_explainability_service()
+                
+                # Create feature values dictionary for explanation
+                feature_values = {
+                    "annual_income": request.annual_income,
+                    "monthly_debt": request.monthly_debt,
+                    "credit_score": request.credit_score,
+                    "loan_amount": request.loan_amount,
+                    "loan_term_months": request.loan_term_months,
+                    "employment_length_years": request.employment_length_years,
+                    "home_ownership": request.home_ownership,
+                    "purpose": request.purpose,
+                    "number_of_open_accounts": request.number_of_open_accounts,
+                    "delinquencies_2y": request.delinquencies_2y,
+                    "inquiries_6m": request.inquiries_6m,
+                }
+                
+                # Generate explanation
+                logger.debug("generating_explanation", request_id=request_id)
+                explanation_result = explainer.explain_prediction(
+                    shap_values=shap_values,
+                    feature_names=feature_names,
+                    feature_values=feature_values,
+                    prediction_probability=response.risk_score
+                )
+                
+                # Convert to dictionary for caching
+                explanation_data = {
+                    "model_version": model_version,
+                    "risk_score": response.risk_score,
+                    "risk_band": explanation_result.risk_band,
+                    "risk_band_description": explanation_result.risk_band_description,
+                    "top_positive_features": [
+                        {
+                            "feature_name": f.feature_name,
+                            "human_name": f.human_name,
+                            "shap_value": f.shap_value,
+                            "feature_value": f.feature_value,
+                            "impact": f.impact,
+                            "magnitude": f.magnitude,
+                            "explanation": f.explanation
+                        }
+                        for f in explanation_result.top_positive_features
+                    ],
+                    "top_negative_features": [
+                        {
+                            "feature_name": f.feature_name,
+                            "human_name": f.human_name,
+                            "shap_value": f.shap_value,
+                            "feature_value": f.feature_value,
+                            "impact": f.impact,
+                            "magnitude": f.magnitude,
+                            "explanation": f.explanation
+                        }
+                        for f in explanation_result.top_negative_features
+                    ],
+                    "what_helped": explanation_result.what_helped,
+                    "what_hurt": explanation_result.what_hurt,
+                    "how_to_improve": explanation_result.how_to_improve,
+                    "disclaimer": explanation_result.disclaimer
+                }
+                
+                # Cache explanation by request_id
+                cache.put_explanation(request_id, explanation_data)
+                
+                logger.info(
+                    "explanation_generated",
+                    request_id=request_id,
+                    risk_band=explanation_result.risk_band,
+                    positive_features=len(explanation_result.top_positive_features),
+                    negative_features=len(explanation_result.top_negative_features)
+                )
+            else:
+                logger.debug(
+                    "shap_values_unavailable",
+                    request_id=request_id,
+                    message="Explanation not generated"
+                )
+                
+        except Exception as e:
+            # Don't fail prediction if explanation fails
+            logger.warning(
+                "explanation_generation_failed",
+                request_id=request_id,
+                error=str(e),
+                message="Continuing without explanation"
+            )
         
         # Track prediction distribution for runtime monitoring
         _prediction_history.append(response.risk_score)
@@ -424,17 +559,21 @@ async def predict_credit_risk_ux_safe(request: CreditRiskRequest) -> UXSafePredi
             model_version=response.model_version,
             schema_version=response.schema_version,
             # Performance metrics
-            inference_latency_ms=round(inference_time * 1000, 2),
+            inference_latency_ms=inference_time_ms,
             total_latency_ms=round(total_time * 1000, 2),
             # High-level flags (no PII)
             is_high_risk=(risk_band == "HIGH"),
             is_approved=(response.recommended_action.value == "APPROVE"),
+            # Cache statistics
+            cache_stats=cache.get_stats()
         )
         
-        # Return UX-safe success response
+        # Return UX-safe success response with metadata
         return UXSafePredictionResponse.success(
             request_id=request_id,
-            prediction_response=response
+            prediction_response=response,
+            prediction_timestamp=timestamp,
+            inference_time_ms=inference_time_ms
         )
         
     except ValueError as e:
@@ -451,7 +590,8 @@ async def predict_credit_risk_ux_safe(request: CreditRiskRequest) -> UXSafePredi
         return UXSafePredictionResponse.create_error(
             request_id=request_id,
             error_message=f"Validation error: {str(e)}",
-            model_version="unknown"
+            model_version="unknown",
+            prediction_timestamp=timestamp
         )
         
     except RuntimeError as e:
@@ -468,7 +608,8 @@ async def predict_credit_risk_ux_safe(request: CreditRiskRequest) -> UXSafePredi
         return UXSafePredictionResponse.create_error(
             request_id=request_id,
             error_message="Model is not available. Please try again later.",
-            model_version="unknown"
+            model_version="unknown",
+            prediction_timestamp=timestamp
         )
         
     except Exception as e:
@@ -487,7 +628,8 @@ async def predict_credit_risk_ux_safe(request: CreditRiskRequest) -> UXSafePredi
         return UXSafePredictionResponse.create_error(
             request_id=request_id,
             error_message="An unexpected error occurred. Please try again or contact support.",
-            model_version="unknown"
+            model_version="unknown",
+            prediction_timestamp=timestamp
         )
 
 

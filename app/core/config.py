@@ -1,8 +1,15 @@
 from pydantic_settings import BaseSettings
+from pydantic import ConfigDict
 from typing import List
 
 
 class Settings(BaseSettings):
+    model_config = ConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"  # Ignore extra fields (e.g., VITE_* frontend vars)
+    )
+    
     APP_NAME: str = "credit-risk-backend"
     APP_VERSION: str = "0.1.0"
     LOG_LEVEL: str = "INFO"
@@ -21,10 +28,6 @@ class Settings(BaseSettings):
     ]
     CORS_METHODS: List[str] = ["GET", "POST"]
     CORS_ALLOW_CREDENTIALS: bool = True
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
 
 settings = Settings()

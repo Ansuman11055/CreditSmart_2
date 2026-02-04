@@ -308,16 +308,20 @@ class MLInferenceEngine:
             f"Prediction sanity check passed: prediction={prediction}, probability={probability:.4f}"
         )
     
-    def predict(self, request: CreditRiskRequest) -> Tuple[int, float]:
+    def predict(self, request: CreditRiskRequest) -> Tuple[int, float, Optional[np.ndarray], Optional[List[str]]]:
         """Generate prediction from validated request.
+        
+        Phase 4D Explainability - Now returns SHAP values alongside prediction
         
         Args:
             request: Validated CreditRiskRequest with applicant features
             
         Returns:
-            Tuple of (prediction, probability):
+            Tuple of (prediction, probability, shap_values, feature_names):
                 - prediction: Binary prediction (0=no default, 1=default)
                 - probability: Probability of default (0.0 to 1.0)
+                - shap_values: SHAP contribution values (or None if unavailable)
+                - feature_names: Ordered feature names matching shap_values (or None)
                 
         Raises:
             SchemaValidationError: If input doesn't match expected schema
@@ -397,7 +401,58 @@ class MLInferenceEngine:
                 f"Probability: {probability:.4f}, Sanity checks: PASSED"
             )
             
-            return prediction, probability
+            # Phase 4D Explainability - Compute SHAP values
+            shap_values = None
+            feature_names_for_shap = None
+            
+            try:
+                # Try to load SHAP explainer if available
+                import shap
+                explainer_path = self.model_dir / "shap_explainer.joblib"
+                
+                if explainer_path.exists():
+                    logger.debug("loading_shap_explainer", path=str(explainer_path))
+                    import joblib
+                    explainer = joblib.load(explainer_path)
+                    
+                    # Compute SHAP values for this prediction
+                    logger.debug("computing_shap_values", input_shape=X_processed.shape)
+                    shap_vals = explainer.shap_values(X_processed)
+                    
+                    # Handle different SHAP output formats
+                    if isinstance(shap_vals, list):
+                        # Binary classification: use positive class (default)
+                        shap_values = shap_vals[1][0]
+                    elif isinstance(shap_vals, np.ndarray):
+                        if len(shap_vals.shape) == 2:
+                            shap_values = shap_vals[0]
+                        else:
+                            shap_values = shap_vals
+                    
+                    # Get feature names from preprocessor output
+                    if hasattr(self.preprocessor, 'get_feature_names_out'):
+                        feature_names_for_shap = list(self.preprocessor.get_feature_names_out())
+                    else:
+                        feature_names_for_shap = self.feature_names
+                    
+                    logger.debug(
+                        "shap_computation_complete",
+                        shap_values_shape=shap_values.shape if hasattr(shap_values, 'shape') else len(shap_values),
+                        feature_count=len(feature_names_for_shap) if feature_names_for_shap else 0
+                    )
+                else:
+                    logger.debug("shap_explainer_not_found", message="SHAP explanations unavailable")
+                    
+            except ImportError:
+                logger.debug("shap_not_installed", message="SHAP library not available")
+            except Exception as e:
+                logger.warning(
+                    "shap_computation_failed",
+                    error=str(e),
+                    message="Continuing without SHAP values"
+                )
+            
+            return prediction, probability, shap_values, feature_names_for_shap
             
         except Exception as e:
             logger.error(f"Prediction failed: {str(e)}", exc_info=True)

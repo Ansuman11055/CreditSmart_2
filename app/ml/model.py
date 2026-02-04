@@ -62,6 +62,8 @@ class CreditRiskModel:
     def predict(self, request: CreditRiskRequest) -> CreditRiskResponse:
         """Generate credit risk prediction.
         
+        Phase 4D Explainability - Now computes SHAP values alongside prediction
+        
         This method delegates to either the ML model or rule-based engine
         while providing a consistent interface.
         
@@ -69,7 +71,7 @@ class CreditRiskModel:
             request: Validated credit risk request
             
         Returns:
-            CreditRiskResponse with risk assessment
+            CreditRiskResponse with risk assessment (SHAP stored separately)
             
         Raises:
             RuntimeError: If model is not loaded
@@ -77,14 +79,22 @@ class CreditRiskModel:
         if not self.is_loaded:
             raise RuntimeError("Model not loaded. Call load() first.")
 
+        # Phase 4D Explainability - Store SHAP values in instance variable for caching
+        self._last_shap_values = None
+        self._last_feature_names = None
+        
         # Use ML model if available
         if self.use_ml_model and self.ml_engine is not None:
             try:
-                # Get prediction and probability from ML model
+                # Get prediction and probability from ML model (Phase 4D - now with SHAP)
                 import time
                 model_start = time.time()
-                prediction, probability = self.ml_engine.predict(request)
+                prediction, probability, shap_values, feature_names = self.ml_engine.predict(request)
                 model_time = time.time() - model_start
+                
+                # Phase 4D Explainability - Store SHAP values for external access
+                self._last_shap_values = shap_values
+                self._last_feature_names = feature_names
                 
                 # Log model inference details
                 logger.info(
@@ -157,6 +167,28 @@ class CreditRiskModel:
         # e.g., self.engine = joblib.load(model_path)
         self.model_path = model_path
         self.is_loaded = True
+
+    def get_model_version(self) -> str:
+        """Get the version string of the current model.
+        
+        Returns:
+            Model version string (e.g., "ml_v1.0.0" or "rule_v1.0.0")
+        """
+        if self.use_ml_model and self.ml_engine is not None:
+            return "ml_v1.0.0"
+        else:
+            return "rule_v1.0.0"
+    
+    # Phase 4D Explainability - Method to retrieve SHAP values from last prediction
+    def get_last_shap_values(self) -> tuple:
+        """Get SHAP values from the most recent prediction.
+        
+        Phase 4D Explainability - Access SHAP contributions for explanation
+        
+        Returns:
+            Tuple of (shap_values, feature_names) or (None, None) if unavailable
+        """
+        return getattr(self, '_last_shap_values', None), getattr(self, '_last_feature_names', None)
 
     def get_model_info(self) -> dict:
         """Get information about the current model.

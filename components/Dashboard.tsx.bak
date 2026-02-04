@@ -1,0 +1,218 @@
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { FinancialProfile } from '../types';
+import { usePrediction } from '../src/hooks/usePrediction';
+import { useCurrency } from '../src/context/CurrencyContext';
+import { formatCurrency, convertToUSD, convertFromUSD } from '../src/utils/currency';
+import { PredictionHeader } from './PredictionHeader';
+import { ModelConfidence } from './ModelConfidence';
+import { KeyRiskDrivers } from './KeyRiskDrivers';
+import { RecommendationPanel } from './RecommendationPanel';
+
+const INITIAL_PROFILE: FinancialProfile = {
+  annualIncome: 85000,
+  monthlyDebt: 1200,
+  creditScore: 720,
+  loanAmount: 25000,
+  employmentYears: 5
+};
+
+export const Dashboard: React.FC = () => {
+  const [profile, setProfile] = useState<FinancialProfile>(INITIAL_PROFILE);
+  const [{ prediction, loading, error }, { runPrediction }] = usePrediction();
+  const { currency } = useCurrency();
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    const numValue = parseFloat(value) || 0;
+    
+    // Store values in USD (convert from display currency)
+    const usdValue = (name === 'annualIncome' || name === 'monthlyDebt' || name === 'loanAmount')
+      ? convertToUSD(numValue, currency)
+      : numValue;
+    
+    setProfile(prev => ({
+      ...prev,
+      [name]: name === 'annualIncome' || name === 'monthlyDebt' || name === 'loanAmount' ? usdValue : numValue
+    }));
+  };
+
+  const handleAnalyze = async () => {
+    // Backend always receives USD values
+    await runPrediction({
+      annualIncome: profile.annualIncome,
+      monthlyDebt: profile.monthlyDebt,
+      creditScore: profile.creditScore,
+      loanAmount: profile.loanAmount,
+      employmentYears: profile.employmentYears
+    });
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <motion.div 
+        className="mb-10"
+        initial={prefersReducedMotion ? {} : { opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+      >
+        <h2 className="text-3xl font-display font-bold text-white mb-2">Risk Analysis Console</h2>
+        <p className="text-slate-400">Enter applicant financial data for real-time ML-powered assessment.</p>
+      </motion.div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Input Form */}
+        <motion.div 
+          className="lg:col-span-4 space-y-6"
+          initial={prefersReducedMotion ? {} : { opacity: 0, x: -30 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
+        >
+          <div className="glass-panel p-6 rounded-xl">
+            <h3 className="text-lg font-medium text-white mb-6 flex items-center gap-2">
+                  Annual Income ({currency})
+                </label>
+                <input
+                  type="number"
+                  name="annualIncome"
+                  value={Math.round(convertFromUSD(profile.annualIncome, currency))}
+                  onChange={handleInputChange}
+                  className="w-full bg-dark-800 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wide">
+                  Monthly Debt ({currency})
+                </label>
+                <input
+                  type="number"
+                  name="monthlyDebt"
+                  value={Math.round(convertFromUSD(profile.monthlyDebt, currency))}
+                  onChange={handleInputChange}
+                  className="w-full bg-dark-800 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wide">Credit Score</label>
+                <input
+                  type="number"
+                  name="creditScore"
+                  value={profile.creditScore}
+                  onChange={handleInputChange}
+                  className="w-full bg-dark-800 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wide">
+                  Loan Amount ({currency})
+                </label>
+                <input
+                  type="number"
+                  name="loanAmount"
+                  value={Math.round(convertFromUSD(profile.loanAmount, currency))-800 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wide">Loan Amount ($)</label>
+                <input
+                  type="number"
+                  name="loanAmount"
+                  value={profile.loanAmount}
+                  onChange={handleInputChange}
+                  className="w-full bg-dark-800 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wide">Employment (Years)</label>
+                <input
+                  type="number"
+                  name="employmentYears"
+                  value={profile.employmentYears}
+                  onChange={handleInputChange}
+                  className="w-full bg-dark-800 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
+                />
+              </div>
+
+              <motion.button
+                onClick={handleAnalyze}
+                className="w-full mt-6 bg-brand-600 hover:bg-brand-500 text-white font-medium py-3 rounded-lg shadow-lg shadow-brand-500/20 transition-all duration-200 flex items-center justify-center gap-2"
+                whileHover={!prefersReducedMotion ? { scale: 1.02 } : {}}
+                whileTap={!prefersReducedMotion ? { scale: 0.98 } : {}}
+                transition={{ duration: 0.15 }}
+              >
+                Run Analysis
+              </motion.button>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* ML Results - Right Column */}
+        <motion.div 
+          className="lg:col-span-8 space-y-6"
+          initial={prefersReducedMotion ? {} : { opacity: 0, x: 30 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, delay: 0.2, ease: 'easeOut' }}
+        >
+          {loading ? (
+            /* Loading State - Minimal Skeleton */
+            <div className="glass-panel p-12 rounded-xl text-center">
+              <div className="inline-block w-12 h-12 border-4 border-slate-700 border-t-brand-500 rounded-full animate-spin mb-4" />
+              <h3 className="text-lg font-medium text-slate-400">Analyzing risk profile...</h3>
+            </div>
+          ) : error ? (
+            /* Error State - Single Line Fallback */
+            <div className="glass-panel p-12 rounded-xl text-center">
+              <svg className="w-16 h-16 text-slate-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <h3 className="text-lg font-medium text-slate-400 mb-2">{error}</h3>
+              <p className="text-sm text-slate-500">
+                Please try again or contact support if the issue persists
+              </p>
+            </div>
+          ) : prediction ? (
+            <>
+              {/* 1. Prediction Summary (PRIMARY FOCUS) */}
+              <PredictionHeader 
+                riskScore={prediction.risk_score}
+                riskBand={prediction.risk_band}
+              />
+
+              {/* 2. Model Confidence */}
+              <ModelConfidence 
+                confidence={prediction.confidence}
+              />
+
+              {/* 3. Key Risk Drivers (Explainability Preview) */}
+              <KeyRiskDrivers 
+                features={prediction.top_features}
+              />
+
+              {/* 4. Recommendation (Decision Layer) */}
+              <RecommendationPanel 
+                recommendation={prediction.recommendation}
+                riskBand={prediction.risk_band}
+              />
+            </>
+          ) : (
+            <div className="glass-panel p-12 rounded-xl text-center">
+              <svg className="w-16 h-16 text-slate-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              <h3 className="text-lg font-medium text-slate-400 mb-2">No Analysis Yet</h3>
+              <p className="text-sm text-slate-500">
+                Enter applicant data and click "Run Analysis" to generate a risk assessment
+              </p>
+            </div>
+          )}
+        </motion.div>
+      </div>
+    </div>
+  );
+};

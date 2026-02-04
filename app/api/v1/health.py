@@ -40,15 +40,19 @@ MONITORING:
 """
 
 from fastapi import APIRouter
+from fastapi import status as http_status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import Literal
 import time
+import structlog
 
 from app.core.config import settings
 from app.ml.model import get_model
 from app.ml.metadata import get_metadata_registry
 
 router = APIRouter()
+logger = structlog.get_logger(__name__)
 
 _START_TIME = time.time()
 
@@ -168,3 +172,110 @@ def health() -> HealthResponse:
         uptime_seconds=round(uptime, 2),
         app_version=settings.APP_VERSION,
     )
+
+
+@router.get("/ready", response_model=HealthResponse, tags=["health"])
+def readiness_check() -> JSONResponse:
+    """Readiness check endpoint for Kubernetes readiness probes.
+    
+    Phase 3E: Production Readiness
+    - Returns 200 only if model is loaded and ready
+    - Returns 503 if service is not ready for traffic
+    - Faster than /health (no metadata lookups)
+    
+    Kubernetes Usage:
+    -----------------
+        readinessProbe:
+          httpGet:
+            path: /api/v1/ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          failureThreshold: 3
+    
+    Load Balancer:
+    --------------
+    Use this endpoint to determine if instance should receive traffic.
+    If /ready returns 503, route traffic to other instances.
+    
+    Returns:
+        JSONResponse with HealthResponse schema
+        
+    Response Codes:
+        - 200: Service ready for traffic (model loaded)
+        - 503: Service not ready (model not loaded or cache unavailable)
+    """
+    uptime = time.time() - _START_TIME
+    
+    try:
+        # Check model is loaded and ready
+        model = get_model()
+        model_loaded = model.is_loaded
+        
+        # Check cache is available (Phase 3E)
+        from app.core.prediction_cache import get_prediction_cache
+        cache = get_prediction_cache()
+        cache_ready = cache is not None
+        
+        # Service is ready only if model is loaded AND cache is available
+        is_ready = model_loaded and cache_ready
+        
+        # Get model version
+        metadata_registry = get_metadata_registry()
+        metadata = metadata_registry.get_metadata()
+        
+        if metadata:
+            model_version = metadata.model_version
+            schema_version = metadata.schema_version
+        else:
+            model_version = "unknown"
+            schema_version = "v1"
+        
+        if not is_ready:
+            # Return 503 Service Unavailable
+            response_data = HealthResponse(
+                service_status="degraded",
+                api_version=API_VERSION,
+                model_loaded=model_loaded,
+                model_version=model_version,
+                schema_version=schema_version,
+                uptime_seconds=round(uptime, 2),
+                app_version=settings.APP_VERSION,
+            )
+            return JSONResponse(
+                status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+                content=response_data.model_dump()
+            )
+        
+        # Service is ready - return 200
+        return HealthResponse(
+            service_status="ok",
+            api_version=API_VERSION,
+            model_loaded=model_loaded,
+            model_version=model_version,
+            schema_version=schema_version,
+            uptime_seconds=round(uptime, 2),
+            app_version=settings.APP_VERSION,
+        )
+        
+    except Exception as e:
+        # Service not ready - return 503
+        logger.error(
+            "readiness_check_failed",
+            error=str(e),
+            exception_type=type(e).__name__
+        )
+        
+        response_data = HealthResponse(
+            service_status="degraded",
+            api_version=API_VERSION,
+            model_loaded=False,
+            model_version="unknown",
+            schema_version="v1",
+            uptime_seconds=round(uptime, 2),
+            app_version=settings.APP_VERSION,
+        )
+        return JSONResponse(
+            status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+            content=response_data.model_dump()
+        )
